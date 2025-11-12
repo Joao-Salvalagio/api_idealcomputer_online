@@ -168,9 +168,18 @@ public class RecommendationService {
                     }
                 }
 
-                // ✅ 2. GPU (prioridade em builds gaming) - COM LOGS
+                // ✅ 2. GPU (prioridade em builds gaming) - COM LOGS DETALHADOS
                 GpuModel selectedGpu = null;
-                if (requiresGpu(request)) {
+                boolean needsGpu = requiresGpu(request);
+                System.out.println("🔵 [Service] ========================================");
+                System.out.println("🔵 [Service] Verificando necessidade de GPU...");
+                System.out.println("🔵 [Service]   - Usage recebido: '" + request.getUsage() + "'");
+                System.out.println("🔵 [Service]   - Detail recebido: '" + request.getDetail() + "'");
+                System.out.println("🔵 [Service]   - Budget recebido: '" + request.getBudget() + "'");
+                System.out.println("🔵 [Service]   - Precisa de GPU? " + (needsGpu ? "✅ SIM" : "❌ NÃO"));
+                System.out.println("🔵 [Service] ========================================");
+
+                if (needsGpu) {
                     System.out.println("🔵 [Service] Tentando selecionar GPU (Budget: R$ " + String.format("%.2f", allocation.gpuBudget) + ")");
                     selectedGpu = selectGpu(allocation.gpuBudget, request);
                     if (selectedGpu != null) {
@@ -180,6 +189,8 @@ public class RecommendationService {
                         System.out.println("❌ [Service]   ❌ NENHUMA GPU encontrada! Pulando kit.");
                         continue; // ✅ PULA ESTE KIT SE NÃO TEM GPU
                     }
+                } else {
+                    System.out.println("🔵 [Service] ⚠️ GPU não é necessária para esta configuração (Jogos Leves ou outros usos)");
                 }
 
                 // ✅ 3. Armazenamento (escalável)
