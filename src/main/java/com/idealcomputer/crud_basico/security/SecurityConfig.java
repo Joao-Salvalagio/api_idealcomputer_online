@@ -45,7 +45,8 @@ public class SecurityConfig {
                 "http://localhost:5173",                                          // Desenvolvimento local
                 "https://frontendidealcomputeronline-vercel.vercel.app",         // Vercel
                 "https://idealcomputer.com.br",                                   // Domínio principal
-                "https://www.idealcomputer.com.br"                                // Domínio com www
+                "https://www.idealcomputer.com.br",
+                "https://idealcomputer.vercel.app"// Domínio com www
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
