@@ -1,13 +1,72 @@
 spring:
   application:
     name: crud-basico-prototipo
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/idealcomputer_db
+    username: postgres
+    password: post
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
   jackson:
     property-naming-strategy: SNAKE_CASE
+
+server:
+  port: 8080
 
 jwt:
   secret: idealcomputer_esta_e_uma_chave_secreta_muito_maior_e_mais_segura_para_usar_em_producao_2025
   expiration: 36000000
+
+logging:
+  level:
+    root: INFO
+    com.idealcomputer: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://${DATABASE_HOST}/${DATABASE_NAME}?sslmode=require
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  sql:
+    init:
+      mode: never
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
+server:
+  port: ${PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000
 
 logging:
   level:
