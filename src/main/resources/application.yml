@@ -14,6 +14,12 @@ spring:
     username: postgres
     password: post
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # ✅ Pool de conexões otimizado para desenvolvimento
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,6 +28,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+    # ✅ Desabilitar open-in-view (melhora performance)
+    open-in-view: false
   jackson:
     property-naming-strategy: SNAKE_CASE
 
@@ -47,6 +55,14 @@ spring:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # ✅ Pool de conexões OTIMIZADO para Render FREE (512 MB RAM)
+      maximum-pool-size: 3
+      minimum-idle: 1
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      leak-detection-threshold: 60000
   jpa:
     hibernate:
       ddl-auto: update
@@ -54,7 +70,19 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false
+        # ✅ Otimizações do Hibernate
+        jdbc:
+          batch_size: 20
+          fetch_size: 20
+        order_inserts: true
+        order_updates: true
+        # ✅ Cache de segundo nível (desabilitado)
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+    # ✅ IMPORTANTE: Desabilitar open-in-view (economiza RAM)
+    open-in-view: false
   sql:
     init:
       mode: never
@@ -63,6 +91,12 @@ spring:
 
 server:
   port: ${PORT:8080}
+  # ✅ Configurações de timeout (Render FREE é lento)
+  tomcat:
+    connection-timeout: 60000
+    threads:
+      max: 50
+      min-spare: 5
 
 jwt:
   secret: ${JWT_SECRET}
@@ -70,5 +104,8 @@ jwt:
 
 logging:
   level:
-    root: INFO
-    com.idealcomputer: DEBUG
+    root: WARN
+    com.idealcomputer: INFO
+    # ✅ Reduzir logs do Hibernate (melhora performance)
+    org.hibernate: WARN
+    org.springframework: WARN
