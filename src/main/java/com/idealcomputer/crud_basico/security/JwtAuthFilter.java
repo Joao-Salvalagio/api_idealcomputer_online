@@ -30,7 +30,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // ✅ CORREÇÃO: Libera endpoints públicos (auth e recommendations)
         String path = request.getServletPath();
 
         if (path.contains("/api/auth") || path.contains("/api/recommendations")) {

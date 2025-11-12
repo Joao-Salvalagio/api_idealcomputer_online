@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetailsService; // Removido 'UserDetails'
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -54,15 +54,11 @@ public class AuthController {
             throw new Exception("Email ou senha inválidos", e);
         }
 
-        // --- MUDANÇA AQUI ---
-        // 1. Buscamos o usuário COMPLETO no banco de dados
         UserModel userModel = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new Exception("Usuário não encontrado após a autenticação."));
 
-        // 2. Geramos o token usando o UserModel (para incluir os claims)
         final String token = jwtUtil.generateToken(userModel);
 
-        // 3. Retornamos a resposta
         return ResponseEntity.ok(new AuthResponseDTO(token, userModel.getEmail(), userModel.getName()));
     }
 }
