@@ -45,8 +45,8 @@ public class SecurityConfig {
                 "http://localhost:5173",                                          // Desenvolvimento local
                 "https://frontendidealcomputeronline-vercel.vercel.app",         // Vercel
                 "https://idealcomputer.com.br",                                   // Domínio principal
-                "https://www.idealcomputer.com.br",
-                "https://idealcomputer.vercel.app"// Domínio com www
+                "https://www.idealcomputer.com.br",                               // Domínio com www
+                "https://idealcomputer.vercel.app"                                // Vercel novo
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -73,15 +73,15 @@ public class SecurityConfig {
                         // ========================================
                         // 📖 COMPONENTES: GET PÚBLICO, POST/PUT/DELETE ADMIN
                         // ========================================
-                        // ✅ Qualquer usuário logado pode LISTAR (GET)
-                        .requestMatchers(HttpMethod.GET, "/api/cpus/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/gpus/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/placas-mae/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/memorias-ram/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/armazenamentos/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/fontes/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/gabinetes/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/refrigeracoes/**").authenticated()
+                        // ✅ GET PÚBLICO (para recomendações funcionarem)
+                        .requestMatchers(HttpMethod.GET, "/api/cpus/**").permitAll()           // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/gpus/**").permitAll()           // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/placas-mae/**").permitAll()     // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/memorias-ram/**").permitAll()   // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/armazenamentos/**").permitAll() // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/fontes/**").permitAll()         // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/gabinetes/**").permitAll()      // ✅ MUDANÇA AQUI
+                        .requestMatchers(HttpMethod.GET, "/api/refrigeracoes/**").permitAll()  // ✅ MUDANÇA AQUI
 
                         // ❌ Apenas ADMIN pode CRIAR/EDITAR/DELETAR
                         .requestMatchers(HttpMethod.POST, "/api/cpus/**").hasAuthority("ADMINISTRADOR")
