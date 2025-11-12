@@ -26,9 +26,9 @@ public class RecommendationService {
     private final RefrigeracaoRepository refrigeracaoRepository;
 
     // ✅ CONFIGURAÇÕES DE PERFORMANCE
-    private static final int MAX_ATTEMPTS = 150; // Máximo de tentativas
-    private static final long TIMEOUT_MS = 45000; // 45 segundos
-    private static final double MIN_BUDGET_USAGE = 0.75; // 75% do orçamento (early exit)
+    private static final int MAX_ATTEMPTS = 150;
+    private static final long TIMEOUT_MS = 45000;
+    private static final double MIN_BUDGET_USAGE = 0.75;
 
     private static class PlatformKit {
         CpuModel cpu;
@@ -80,7 +80,7 @@ public class RecommendationService {
             // ✅ OTIMIZAÇÃO: Filtra CPUs ANTES do loop
             System.out.println("🔵 [Service] Filtrando CPUs por uso e orçamento...");
             List<CpuModel> validCpus = allCpus.stream()
-                    .filter(cpu -> cpu.getPreco() <= allocation.platformBudget * 0.6) // CPU máx 60% do orçamento da plataforma
+                    .filter(cpu -> cpu.getPreco() <= allocation.platformBudget * 0.6)
                     .filter(cpu -> filterCpuByUsage(cpu, request))
                     .sorted(Comparator.comparing(CpuModel::getPreco).reversed())
                     .collect(Collectors.toList());
@@ -282,38 +282,61 @@ public class RecommendationService {
         }
     }
 
-    // ✅ NOVO: Filtro de CPU por uso
+    // ✅ FILTRO INTELIGENTE DE CPU (CORRIGIDO)
     private boolean filterCpuByUsage(CpuModel cpu, RecommendationRequestDTO request) {
         String usage = request.getUsage().toLowerCase();
         String detail = request.getDetail().toLowerCase();
-        String cpuName = cpu.getNome().toLowerCase();
+        String cpuName = cpu.getNome().toUpperCase(); // ✅ UPPERCASE para match case-insensitive
 
+        System.out.println("🔵 [Service] Analisando CPU: " + cpu.getNome() + " (R$ " + cpu.getPreco() + ")");
+
+        // ✅ JOGOS: Prioriza CPUs sem gráfico integrado (mais poder de processamento)
         if (usage.equals("jogos")) {
             if (detail.contains("leves")) {
-                return cpuName.contains("g");
+                // Jogos leves: Aceita CPUs com gráfico integrado (economiza em GPU)
+                boolean hasIntegratedGraphics = cpuName.endsWith("G");
+                System.out.println("🔵 [Service]   -> Jogos Leves: " + (hasIntegratedGraphics ? "✅ ACEITA (com iGPU)" : "⚠️ Aceita mas não é ideal"));
+                return true; // Aceita todas, mas prioriza as com "G"
             }
-            return !cpuName.contains("g");
+            // Jogos pesados/todo tipo: Prioriza CPUs sem gráfico (mais núcleos/threads)
+            boolean isGamingCpu = !cpuName.endsWith("G") || cpuName.contains("F");
+            System.out.println("🔵 [Service]   -> Jogos Pesados: " + (isGamingCpu ? "✅ ACEITA (sem iGPU)" : "⚠️ Aceita mas não é ideal"));
+            return true; // Aceita todas para ter mais opções
         }
 
+        // ✅ ESTUDOS: Depende do curso
         if (usage.equals("estudos")) {
-            if (detail.contains("engenharia")) {
-                return !cpuName.contains("g");
+            if (detail.contains("engenharia") || detail.contains("arquitetura")) {
+                // Cursos pesados: Precisa de CPUs potentes
+                boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
+                System.out.println("🔵 [Service]   -> Engenharia: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
+                return true;
             }
-            return cpuName.contains("g");
+            // Outros cursos: Aceita qualquer CPU
+            System.out.println("🔵 [Service]   -> Estudos Gerais: ✅ ACEITA");
+            return true;
         }
 
+        // ✅ TRABALHO: Depende do tipo
         if (usage.equals("trabalho")) {
-            if (detail.contains("office") || detail.contains("básico")) {
-                return cpuName.contains("g");
+            if (detail.contains("edição") || detail.contains("design") || detail.contains("renderização")) {
+                // Trabalho pesado: CPUs potentes
+                boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
+                System.out.println("🔵 [Service]   -> Trabalho Pesado: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
+                return true;
             }
-            return !cpuName.contains("g");
+            // Office/Básico: Qualquer CPU serve
+            System.out.println("🔵 [Service]   -> Trabalho Básico: ✅ ACEITA");
+            return true;
         }
 
+        // ✅ DEFAULT: Aceita qualquer CPU
+        System.out.println("🔵 [Service]   -> Uso Genérico: ✅ ACEITA");
         return true;
     }
 
     // ========================================
-    // ✅ NOVO: ALOCAÇÃO DE ORÇAMENTO INTELIGENTE
+    // ✅ ALOCAÇÃO DE ORÇAMENTO INTELIGENTE
     // ========================================
 
     private static class BudgetAllocation {
@@ -332,11 +355,11 @@ public class RecommendationService {
         // ✅ GAMING: GPU é PRIORIDADE
         if (usage.equals("jogos")) {
             if (detail.contains("pesados") || detail.contains("todo tipo")) {
-                allocation.platformBudget = maxBudget * 0.35;  // 35% CPU+Placa+RAM
-                allocation.gpuBudget = maxBudget * 0.40;       // 40% GPU
-                allocation.storageBudget = maxBudget * 0.08;   // 8% Storage
-                allocation.caseBudget = maxBudget * 0.08;      // 8% Case
-                allocation.coolerBudget = maxBudget * 0.09;    // 9% Cooler
+                allocation.platformBudget = maxBudget * 0.35;
+                allocation.gpuBudget = maxBudget * 0.40;
+                allocation.storageBudget = maxBudget * 0.08;
+                allocation.caseBudget = maxBudget * 0.08;
+                allocation.coolerBudget = maxBudget * 0.09;
             } else {
                 allocation.platformBudget = maxBudget * 0.40;
                 allocation.gpuBudget = maxBudget * 0.30;
@@ -349,7 +372,7 @@ public class RecommendationService {
         else if (usage.equals("trabalho")) {
             allocation.platformBudget = maxBudget * 0.45;
             allocation.gpuBudget = maxBudget * 0.20;
-            allocation.storageBudget = maxBudget * 0.15;  // Mais storage
+            allocation.storageBudget = maxBudget * 0.15;
             allocation.caseBudget = maxBudget * 0.10;
             allocation.coolerBudget = maxBudget * 0.10;
         }
