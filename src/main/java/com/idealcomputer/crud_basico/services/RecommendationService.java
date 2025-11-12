@@ -168,12 +168,17 @@ public class RecommendationService {
                     }
                 }
 
-                // ✅ 2. GPU (prioridade em builds gaming)
+                // ✅ 2. GPU (prioridade em builds gaming) - COM LOGS
                 GpuModel selectedGpu = null;
                 if (requiresGpu(request)) {
+                    System.out.println("🔵 [Service] Tentando selecionar GPU (Budget: R$ " + String.format("%.2f", allocation.gpuBudget) + ")");
                     selectedGpu = selectGpu(allocation.gpuBudget, request);
                     if (selectedGpu != null) {
+                        System.out.println("🔵 [Service]   ✅ GPU selecionada: " + selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")");
                         remainingBudget -= selectedGpu.getPreco();
+                    } else {
+                        System.out.println("❌ [Service]   ❌ NENHUMA GPU encontrada! Pulando kit.");
+                        continue; // ✅ PULA ESTE KIT SE NÃO TEM GPU
                     }
                 }
 
@@ -286,33 +291,29 @@ public class RecommendationService {
     private boolean filterCpuByUsage(CpuModel cpu, RecommendationRequestDTO request) {
         String usage = request.getUsage().toLowerCase();
         String detail = request.getDetail().toLowerCase();
-        String cpuName = cpu.getNome().toUpperCase(); // ✅ UPPERCASE para match case-insensitive
+        String cpuName = cpu.getNome().toUpperCase();
 
         System.out.println("🔵 [Service] Analisando CPU: " + cpu.getNome() + " (R$ " + cpu.getPreco() + ")");
 
-        // ✅ JOGOS: Prioriza CPUs sem gráfico integrado (mais poder de processamento)
+        // ✅ JOGOS: Prioriza CPUs sem gráfico integrado
         if (usage.equals("jogos")) {
             if (detail.contains("leves")) {
-                // Jogos leves: Aceita CPUs com gráfico integrado (economiza em GPU)
                 boolean hasIntegratedGraphics = cpuName.endsWith("G");
                 System.out.println("🔵 [Service]   -> Jogos Leves: " + (hasIntegratedGraphics ? "✅ ACEITA (com iGPU)" : "⚠️ Aceita mas não é ideal"));
-                return true; // Aceita todas, mas prioriza as com "G"
+                return true;
             }
-            // Jogos pesados/todo tipo: Prioriza CPUs sem gráfico (mais núcleos/threads)
             boolean isGamingCpu = !cpuName.endsWith("G") || cpuName.contains("F");
             System.out.println("🔵 [Service]   -> Jogos Pesados: " + (isGamingCpu ? "✅ ACEITA (sem iGPU)" : "⚠️ Aceita mas não é ideal"));
-            return true; // Aceita todas para ter mais opções
+            return true;
         }
 
         // ✅ ESTUDOS: Depende do curso
         if (usage.equals("estudos")) {
             if (detail.contains("engenharia") || detail.contains("arquitetura")) {
-                // Cursos pesados: Precisa de CPUs potentes
                 boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
                 System.out.println("🔵 [Service]   -> Engenharia: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
                 return true;
             }
-            // Outros cursos: Aceita qualquer CPU
             System.out.println("🔵 [Service]   -> Estudos Gerais: ✅ ACEITA");
             return true;
         }
@@ -320,24 +321,17 @@ public class RecommendationService {
         // ✅ TRABALHO: Depende do tipo
         if (usage.equals("trabalho")) {
             if (detail.contains("edição") || detail.contains("design") || detail.contains("renderização")) {
-                // Trabalho pesado: CPUs potentes
                 boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
                 System.out.println("🔵 [Service]   -> Trabalho Pesado: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
                 return true;
             }
-            // Office/Básico: Qualquer CPU serve
             System.out.println("🔵 [Service]   -> Trabalho Básico: ✅ ACEITA");
             return true;
         }
 
-        // ✅ DEFAULT: Aceita qualquer CPU
         System.out.println("🔵 [Service]   -> Uso Genérico: ✅ ACEITA");
         return true;
     }
-
-    // ========================================
-    // ✅ ALOCAÇÃO DE ORÇAMENTO INTELIGENTE
-    // ========================================
 
     private static class BudgetAllocation {
         double platformBudget;
@@ -352,7 +346,6 @@ public class RecommendationService {
         String usage = request.getUsage().toLowerCase();
         String detail = request.getDetail().toLowerCase();
 
-        // ✅ GAMING: GPU é PRIORIDADE
         if (usage.equals("jogos")) {
             if (detail.contains("pesados") || detail.contains("todo tipo")) {
                 allocation.platformBudget = maxBudget * 0.35;
@@ -367,17 +360,13 @@ public class RecommendationService {
                 allocation.caseBudget = maxBudget * 0.10;
                 allocation.coolerBudget = maxBudget * 0.10;
             }
-        }
-        // ✅ TRABALHO: CPU e Storage prioridade
-        else if (usage.equals("trabalho")) {
+        } else if (usage.equals("trabalho")) {
             allocation.platformBudget = maxBudget * 0.45;
             allocation.gpuBudget = maxBudget * 0.20;
             allocation.storageBudget = maxBudget * 0.15;
             allocation.caseBudget = maxBudget * 0.10;
             allocation.coolerBudget = maxBudget * 0.10;
-        }
-        // ✅ ESTUDOS: Balanceado (sem GPU)
-        else {
+        } else {
             allocation.platformBudget = maxBudget * 0.60;
             allocation.gpuBudget = 0;
             allocation.storageBudget = maxBudget * 0.15;
@@ -388,18 +377,31 @@ public class RecommendationService {
         return allocation;
     }
 
-    // ========================================
-    // MÉTODOS DE SELEÇÃO (SEM MUDANÇAS)
-    // ========================================
-
+    // ✅ MÉTODO selectGpu COM LOGS DE DEBUG
     private GpuModel selectGpu(double budget, RecommendationRequestDTO request) {
         String detail = request.getDetail().toLowerCase();
-        List<GpuModel> gpus = gpuRepository.findAll().stream()
-                .filter(g -> g.getPreco() <= budget)
+
+        System.out.println("🔵 [Service] Buscando GPUs (Budget: R$ " + String.format("%.2f", budget) + ")");
+        List<GpuModel> allGpus = gpuRepository.findAll();
+        System.out.println("🔵 [Service] Total de GPUs no banco: " + allGpus.size());
+
+        List<GpuModel> gpus = allGpus.stream()
+                .filter(g -> {
+                    boolean priceOk = g.getPreco() <= budget;
+                    if (!priceOk) {
+                        System.out.println("🔵 [Service]   ❌ GPU rejeitada (preço): " + g.getNome() + " (R$ " + g.getPreco() + ")");
+                    }
+                    return priceOk;
+                })
                 .sorted(Comparator.comparing(GpuModel::getPreco).reversed())
                 .collect(Collectors.toList());
 
-        if (gpus.isEmpty()) return null;
+        System.out.println("🔵 [Service] GPUs dentro do orçamento: " + gpus.size());
+
+        if (gpus.isEmpty()) {
+            System.out.println("❌ [Service] NENHUMA GPU encontrada dentro do orçamento!");
+            return null;
+        }
 
         if (budget > 5000 && (detail.contains("pesados") || detail.contains("todo tipo") || detail.contains("edição"))) {
             return gpus.stream()
