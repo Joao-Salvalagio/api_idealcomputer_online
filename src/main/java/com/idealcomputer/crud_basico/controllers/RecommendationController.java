@@ -14,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 @RestController
 @RequestMapping(value = "/api/recommendations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // ✅ ADICIONE ISSO - PERMITE CORS
 public class RecommendationController {
 
     private final RecommendationService recommendationService;
