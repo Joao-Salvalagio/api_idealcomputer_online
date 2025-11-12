@@ -17,7 +17,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -61,11 +60,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // Rotas públicas
+                        // ✅ ROTAS PÚBLICAS (sem autenticação)
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/recommendations/**").permitAll()
 
-                        // Rotas admin - TODAS precisam de autenticação + role ADMINISTRADOR
+                        // ✅ ROTAS PROTEGIDAS (qualquer usuário logado pode acessar)
+                        .requestMatchers("/api/builds/**").authenticated()
+
+                        // ✅ ROTAS ADMIN (só ADMINISTRADOR)
                         .requestMatchers("/api/usuarios/**").hasAuthority("ADMINISTRADOR")
                         .requestMatchers("/api/cpus/**").hasAuthority("ADMINISTRADOR")
                         .requestMatchers("/api/gpus/**").hasAuthority("ADMINISTRADOR")
@@ -76,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/gabinetes/**").hasAuthority("ADMINISTRADOR")
                         .requestMatchers("/api/refrigeracoes/**").hasAuthority("ADMINISTRADOR")
 
-                        // Qualquer outra requisição precisa estar autenticada
+                        // ✅ QUALQUER OUTRA ROTA PRECISA ESTAR AUTENTICADA
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
