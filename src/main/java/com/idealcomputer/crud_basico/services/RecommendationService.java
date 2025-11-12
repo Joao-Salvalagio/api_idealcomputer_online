@@ -25,6 +25,11 @@ public class RecommendationService {
     private final GabineteRepository gabineteRepository;
     private final RefrigeracaoRepository refrigeracaoRepository;
 
+    // ✅ CONFIGURAÇÕES DE PERFORMANCE
+    private static final int MAX_ATTEMPTS = 150; // Máximo de tentativas
+    private static final long TIMEOUT_MS = 45000; // 45 segundos
+    private static final double MIN_BUDGET_USAGE = 0.75; // 75% do orçamento (early exit)
+
     private static class PlatformKit {
         CpuModel cpu;
         PlacaMaeModel placaMae;
@@ -44,6 +49,8 @@ public class RecommendationService {
         System.out.println("🔵 [Service] INICIANDO GERAÇÃO DE RECOMENDAÇÃO");
         System.out.println("🔵 [Service] ========================================");
         long startTime = System.currentTimeMillis();
+        RecommendationResponseDTO bestBuild = null;
+        double bestPrice = 0;
 
         try {
             double maxBudget = getBudgetLimit(request.getBudget());
@@ -132,6 +139,20 @@ public class RecommendationService {
 
             for (PlatformKit currentKit : allPossibleKits) {
                 attempts++;
+
+                // ✅ VERIFICAR TIMEOUT
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (elapsedTime > TIMEOUT_MS) {
+                    System.out.println("🔵 [Service] ⚠️ Timeout atingido (" + (elapsedTime / 1000) + "s)! Retornando melhor build encontrada.");
+                    break;
+                }
+
+                // ✅ LIMITE DE TENTATIVAS
+                if (attempts > MAX_ATTEMPTS) {
+                    System.out.println("🔵 [Service] ⚠️ Limite de " + MAX_ATTEMPTS + " tentativas atingido! Retornando melhor build encontrada.");
+                    break;
+                }
+
                 double remainingBudget = maxBudget - currentKit.totalCost;
 
                 if (attempts % 10 == 0) {
@@ -175,35 +196,73 @@ public class RecommendationService {
 
                 // Verifica se todos os componentes obrigatórios foram encontrados
                 if (selectedArmazenamento != null && selectedFonte != null && selectedGabinete != null && remainingBudget >= -200) {
-                    long endTime = System.currentTimeMillis();
-                    long duration = (endTime - startTime) / 1000;
+                    double totalPrice = maxBudget - remainingBudget;
+                    double usagePercentage = totalPrice / maxBudget;
 
-                    System.out.println("✅ [Service] ========================================");
-                    System.out.println("✅ [Service] BUILD MONTADA COM SUCESSO!");
-                    System.out.println("✅ [Service] ========================================");
-                    System.out.println("✅ [Service] Tempo de processamento: " + duration + " segundos");
-                    System.out.println("✅ [Service] Tentativas necessárias: " + attempts);
-                    System.out.println("✅ [Service] Componentes:");
-                    System.out.println("✅ [Service]   - CPU: " + currentKit.cpu.getNome() + " (R$ " + currentKit.cpu.getPreco() + ")");
-                    System.out.println("✅ [Service]   - Placa-mãe: " + currentKit.placaMae.getNome() + " (R$ " + currentKit.placaMae.getPreco() + ")");
-                    System.out.println("✅ [Service]   - RAM: " + currentKit.memoriaRam.getNome() + " (R$ " + currentKit.memoriaRam.getPreco() + ")");
-                    System.out.println("✅ [Service]   - GPU: " + (selectedGpu != null ? selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")" : "Nenhuma"));
-                    System.out.println("✅ [Service]   - Armazenamento: " + selectedArmazenamento.getNome() + " (R$ " + selectedArmazenamento.getPreco() + ")");
-                    System.out.println("✅ [Service]   - Fonte: " + selectedFonte.getNome() + " (R$ " + selectedFonte.getPreco() + ")");
-                    System.out.println("✅ [Service]   - Gabinete: " + selectedGabinete.getNome() + " (R$ " + selectedGabinete.getPreco() + ")");
-                    System.out.println("✅ [Service]   - Refrigeração: " + (selectedRefrigeracao != null ? selectedRefrigeracao.getNome() + " (R$ " + selectedRefrigeracao.getPreco() + ")" : "Nenhuma"));
+                    // ✅ EARLY EXIT: Se usar > 75% do orçamento, aceita!
+                    if (usagePercentage >= MIN_BUDGET_USAGE) {
+                        long endTime = System.currentTimeMillis();
+                        long duration = (endTime - startTime) / 1000;
 
-                    RecommendationResponseDTO response = new RecommendationResponseDTO();
-                    response.setCpu(currentKit.cpu);
-                    response.setPlacaMae(currentKit.placaMae);
-                    response.setMemoriaRam(currentKit.memoriaRam);
-                    response.setGpu(selectedGpu);
-                    response.setArmazenamento(selectedArmazenamento);
-                    response.setFonte(selectedFonte);
-                    response.setGabinete(selectedGabinete);
-                    response.setRefrigeracao(selectedRefrigeracao);
-                    return response;
+                        System.out.println("✅ [Service] ========================================");
+                        System.out.println("✅ [Service] BUILD ÓTIMA ENCONTRADA!");
+                        System.out.println("✅ [Service] ========================================");
+                        System.out.println("✅ [Service] Tempo de processamento: " + duration + " segundos");
+                        System.out.println("✅ [Service] Tentativas necessárias: " + attempts);
+                        System.out.println("✅ [Service] Uso do orçamento: " + String.format("%.2f%%", usagePercentage * 100));
+                        System.out.println("✅ [Service] Componentes:");
+                        System.out.println("✅ [Service]   - CPU: " + currentKit.cpu.getNome() + " (R$ " + currentKit.cpu.getPreco() + ")");
+                        System.out.println("✅ [Service]   - Placa-mãe: " + currentKit.placaMae.getNome() + " (R$ " + currentKit.placaMae.getPreco() + ")");
+                        System.out.println("✅ [Service]   - RAM: " + currentKit.memoriaRam.getNome() + " (R$ " + currentKit.memoriaRam.getPreco() + ")");
+                        System.out.println("✅ [Service]   - GPU: " + (selectedGpu != null ? selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")" : "Nenhuma"));
+                        System.out.println("✅ [Service]   - Armazenamento: " + selectedArmazenamento.getNome() + " (R$ " + selectedArmazenamento.getPreco() + ")");
+                        System.out.println("✅ [Service]   - Fonte: " + selectedFonte.getNome() + " (R$ " + selectedFonte.getPreco() + ")");
+                        System.out.println("✅ [Service]   - Gabinete: " + selectedGabinete.getNome() + " (R$ " + selectedGabinete.getPreco() + ")");
+                        System.out.println("✅ [Service]   - Refrigeração: " + (selectedRefrigeracao != null ? selectedRefrigeracao.getNome() + " (R$ " + selectedRefrigeracao.getPreco() + ")" : "Nenhuma"));
+
+                        RecommendationResponseDTO response = new RecommendationResponseDTO();
+                        response.setCpu(currentKit.cpu);
+                        response.setPlacaMae(currentKit.placaMae);
+                        response.setMemoriaRam(currentKit.memoriaRam);
+                        response.setGpu(selectedGpu);
+                        response.setArmazenamento(selectedArmazenamento);
+                        response.setFonte(selectedFonte);
+                        response.setGabinete(selectedGabinete);
+                        response.setRefrigeracao(selectedRefrigeracao);
+                        return response;
+                    }
+
+                    // ✅ Guardar melhor build
+                    if (totalPrice > bestPrice) {
+                        bestPrice = totalPrice;
+                        bestBuild = new RecommendationResponseDTO();
+                        bestBuild.setCpu(currentKit.cpu);
+                        bestBuild.setPlacaMae(currentKit.placaMae);
+                        bestBuild.setMemoriaRam(currentKit.memoriaRam);
+                        bestBuild.setGpu(selectedGpu);
+                        bestBuild.setArmazenamento(selectedArmazenamento);
+                        bestBuild.setFonte(selectedFonte);
+                        bestBuild.setGabinete(selectedGabinete);
+                        bestBuild.setRefrigeracao(selectedRefrigeracao);
+                    }
                 }
+            }
+
+            // ✅ Se não encontrou build ótima, retorna a melhor
+            if (bestBuild != null) {
+                long endTime = System.currentTimeMillis();
+                long duration = (endTime - startTime) / 1000;
+                double usagePercentage = bestPrice / maxBudget;
+
+                System.out.println("✅ [Service] ========================================");
+                System.out.println("✅ [Service] MELHOR BUILD ENCONTRADA!");
+                System.out.println("✅ [Service] ========================================");
+                System.out.println("✅ [Service] Tempo de processamento: " + duration + " segundos");
+                System.out.println("✅ [Service] Tentativas totais: " + attempts);
+                System.out.println("✅ [Service] Uso do orçamento: " + String.format("%.2f%%", usagePercentage * 100));
+                System.out.println("✅ [Service] Preço total: R$ " + String.format("%.2f", bestPrice));
+
+                return bestBuild;
             }
 
             throw new RuntimeException("Não foi possível montar uma configuração completa após " + attempts + " tentativas. Tente um orçamento maior ou cadastre mais peças.");
