@@ -2,26 +2,8 @@ spring:
   application:
     name: crud-basico-prototipo
 
-  datasource:
-    url: jdbc:postgresql://localhost:5432/idealcomputer_db
-    username: postgres
-    password: post
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-
   jackson:
     property-naming-strategy: SNAKE_CASE
-
-server:
-  port: 8080
 
 jwt:
   secret: idealcomputer_esta_e_uma_chave_secreta_muito_maior_e_mais_segura_para_usar_em_producao_2025
