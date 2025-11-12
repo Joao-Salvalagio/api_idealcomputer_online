@@ -3,6 +3,7 @@ package com.idealcomputer.crud_basico.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -39,10 +40,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // ✅ PERMITIR MÚLTIPLAS ORIGENS (localhost + Vercel)
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",              // Qualquer porta localhost
-                "https://*.vercel.app"             // Qualquer subdomínio do Vercel
+        // ✅ TODAS AS ORIGENS PERMITIDAS (Localhost + Vercel + Domínio)
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:5173",                                          // Desenvolvimento local
+                "https://frontendidealcomputeronline-vercel.vercel.app",         // Vercel
+                "https://idealcomputer.com.br",                                   // Domínio principal
+                "https://www.idealcomputer.com.br"                                // Domínio com www
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -60,25 +63,71 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ ROTAS PÚBLICAS (sem autenticação)
+                        // ========================================
+                        // 🔓 ROTAS PÚBLICAS (SEM AUTENTICAÇÃO)
+                        // ========================================
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/recommendations/**").permitAll()
 
-                        // ✅ ROTAS PROTEGIDAS (qualquer usuário logado pode acessar)
+                        // ========================================
+                        // 📖 COMPONENTES: GET PÚBLICO, POST/PUT/DELETE ADMIN
+                        // ========================================
+                        // ✅ Qualquer usuário logado pode LISTAR (GET)
+                        .requestMatchers(HttpMethod.GET, "/api/cpus/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/gpus/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/placas-mae/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/memorias-ram/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/armazenamentos/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/fontes/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/gabinetes/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/refrigeracoes/**").authenticated()
+
+                        // ❌ Apenas ADMIN pode CRIAR/EDITAR/DELETAR
+                        .requestMatchers(HttpMethod.POST, "/api/cpus/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/cpus/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/cpus/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/gpus/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/gpus/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/gpus/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/placas-mae/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/placas-mae/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/placas-mae/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/memorias-ram/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/memorias-ram/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/memorias-ram/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/armazenamentos/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/armazenamentos/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/armazenamentos/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/fontes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/fontes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/fontes/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/gabinetes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/gabinetes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/gabinetes/**").hasAuthority("ADMINISTRADOR")
+
+                        .requestMatchers(HttpMethod.POST, "/api/refrigeracoes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/refrigeracoes/**").hasAuthority("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/refrigeracoes/**").hasAuthority("ADMINISTRADOR")
+
+                        // ========================================
+                        // 👥 USUÁRIOS: APENAS ADMIN
+                        // ========================================
+                        .requestMatchers("/api/usuarios/**").hasAuthority("ADMINISTRADOR")
+
+                        // ========================================
+                        // 🔐 BUILDS: USUÁRIO AUTENTICADO
+                        // ========================================
                         .requestMatchers("/api/builds/**").authenticated()
 
-                        // ✅ ROTAS ADMIN (só ADMINISTRADOR)
-                        .requestMatchers("/api/usuarios/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/cpus/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/gpus/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/placas-mae/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/memorias-ram/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/armazenamentos/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/fontes/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/gabinetes/**").hasAuthority("ADMINISTRADOR")
-                        .requestMatchers("/api/refrigeracoes/**").hasAuthority("ADMINISTRADOR")
-
-                        // ✅ QUALQUER OUTRA ROTA PRECISA ESTAR AUTENTICADA
+                        // ========================================
+                        // 🔒 QUALQUER OUTRA ROTA: PRECISA ESTAR AUTENTICADO
+                        // ========================================
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

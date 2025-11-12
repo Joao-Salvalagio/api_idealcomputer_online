@@ -15,15 +15,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/builds")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
+// ❌ REMOVIDO: @CrossOrigin(origins = "http://localhost:5173")
 public class BuildController {
 
     private final BuildService buildService;
 
-    /**
-     * POST /api/builds/save
-     * Salva uma nova build para o usuário autenticado
-     */
     @PostMapping("/save")
     public ResponseEntity<BuildResponseDTO> salvarBuild(
             @Valid @RequestBody BuildRequestDTO dto,
@@ -35,10 +31,6 @@ public class BuildController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /**
-     * GET /api/builds/my-builds
-     * Lista todas as builds do usuário autenticado
-     */
     @GetMapping("/my-builds")
     public ResponseEntity<List<BuildResponseDTO>> listarMinhasBuilds(Authentication authentication) {
         String emailUsuario = authentication.getName();
@@ -47,10 +39,6 @@ public class BuildController {
         return ResponseEntity.ok(builds);
     }
 
-    /**
-     * GET /api/builds/{id}
-     * Busca uma build específica por ID
-     */
     @GetMapping("/{id}")
     public ResponseEntity<BuildResponseDTO> buscarBuildPorId(
             @PathVariable Long id,
@@ -62,10 +50,6 @@ public class BuildController {
         return ResponseEntity.ok(build);
     }
 
-    /**
-     * DELETE /api/builds/{id}
-     * Deleta uma build
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarBuild(
             @PathVariable Long id,
