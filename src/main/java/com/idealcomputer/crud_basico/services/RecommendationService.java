@@ -77,7 +77,11 @@ public class RecommendationService {
 
         System.out.println("🔵 Total de kits gerados: " + allPossibleKits.size());
 
-        // ✅ NOVO: Calcula orçamentos de cada componente
+        if (allPossibleKits.isEmpty()) {
+            throw new RuntimeException("Nenhum kit compatível de CPU/Placa-mãe/RAM foi encontrado no banco. Verifique as compatibilidades.");
+        }
+
+        // ✅ Calcula orçamentos de cada componente
         BudgetAllocation allocation = calculateBudgetAllocation(maxBudget, request);
         System.out.println("🔵 Alocação de orçamento:");
         System.out.println("🔵   - Plataforma: R$ " + String.format("%.2f", allocation.platformBudget));
@@ -86,39 +90,105 @@ public class RecommendationService {
         System.out.println("🔵   - Gabinete: R$ " + String.format("%.2f", allocation.caseBudget));
         System.out.println("🔵   - Refrigeração: R$ " + String.format("%.2f", allocation.coolerBudget));
 
-        // Filtra kits válidos
-        System.out.println("🔵 Filtrando kits válidos...");
-        List<PlatformKit> validKits = allPossibleKits.stream()
-                .filter(kit -> kit.totalCost <= allocation.platformBudget)
-                .filter(kit -> filterKitByUsage(kit, request))
-                .filter(kit -> filterRamByBudget(kit, request.getBudget()))
-                .sorted(Comparator.comparingDouble((PlatformKit kit) -> kit.totalCost).reversed())
-                .collect(Collectors.toList());
+        // ✅ FALLBACK: Tenta com filtros estritos, depois relaxa gradualmente
+        RecommendationResponseDTO response = tryBuildWithFallback(allPossibleKits, request, maxBudget, allocation);
 
-        System.out.println("🔵 Kits válidos após filtragem: " + validKits.size());
-
-        if (validKits.isEmpty()) {
-            throw new RuntimeException("Não foi possível encontrar um kit compatível. Tente um orçamento maior.");
+        if (response != null) {
+            return response;
         }
 
-        boolean isBudgetBuild = request.getBudget().equalsIgnoreCase("econômico");
+        throw new RuntimeException("Não foi possível montar uma configuração completa. Tente aumentar o orçamento ou adicionar mais peças ao banco.");
+    }
 
+    // ========================================
+    // ✅ FALLBACK INTELIGENTE
+    // ========================================
+
+    private RecommendationResponseDTO tryBuildWithFallback(
+            List<PlatformKit> allKits,
+            RecommendationRequestDTO request,
+            double maxBudget,
+            BudgetAllocation allocation) {
+
+        System.out.println("🔵 ----------------------------------------");
+        System.out.println("🔵 TENTATIVA 1: Filtros estritos");
+
+        // ✅ Tentativa 1: Filtros estritos
+        List<PlatformKit> validKits = filterKits(allKits, request, allocation, true, true);
+        System.out.println("🔵 Kits válidos: " + validKits.size());
+
+        RecommendationResponseDTO response = tryBuildFromKits(validKits, request, maxBudget, allocation);
+        if (response != null) return response;
+
+        // ✅ Tentativa 2: Sem filtro de usage (aceita qualquer CPU)
+        System.out.println("🔵 ----------------------------------------");
+        System.out.println("🔵 TENTATIVA 2: Relaxando filtro de CPU");
+        validKits = filterKits(allKits, request, allocation, false, true);
+        System.out.println("🔵 Kits válidos: " + validKits.size());
+
+        response = tryBuildFromKits(validKits, request, maxBudget, allocation);
+        if (response != null) return response;
+
+        // ✅ Tentativa 3: Sem filtro de RAM (aceita qualquer capacidade)
+        System.out.println("🔵 ----------------------------------------");
+        System.out.println("🔵 TENTATIVA 3: Relaxando filtro de RAM");
+        validKits = filterKits(allKits, request, allocation, false, false);
+        System.out.println("🔵 Kits válidos: " + validKits.size());
+
+        response = tryBuildFromKits(validKits, request, maxBudget, allocation);
+        if (response != null) return response;
+
+        // ✅ Tentativa 4: Aumentando orçamento de cada componente em 20%
+        System.out.println("🔵 ----------------------------------------");
+        System.out.println("🔵 TENTATIVA 4: Aumentando orçamentos em 20%");
+        BudgetAllocation relaxedAllocation = new BudgetAllocation();
+        relaxedAllocation.platformBudget = allocation.platformBudget * 1.2;
+        relaxedAllocation.gpuBudget = allocation.gpuBudget * 1.2;
+        relaxedAllocation.storageBudget = allocation.storageBudget * 1.2;
+        relaxedAllocation.caseBudget = allocation.caseBudget * 1.2;
+        relaxedAllocation.coolerBudget = allocation.coolerBudget * 1.2;
+
+        validKits = filterKits(allKits, request, relaxedAllocation, false, false);
+        System.out.println("🔵 Kits válidos: " + validKits.size());
+
+        response = tryBuildFromKits(validKits, request, maxBudget * 1.2, relaxedAllocation);
+        if (response != null) return response;
+
+        return null;
+    }
+
+    private List<PlatformKit> filterKits(
+            List<PlatformKit> allKits,
+            RecommendationRequestDTO request,
+            BudgetAllocation allocation,
+            boolean applyUsageFilter,
+            boolean applyRamFilter) {
+
+        return allKits.stream()
+                .filter(kit -> kit.totalCost <= allocation.platformBudget)
+                .filter(kit -> !applyUsageFilter || filterKitByUsage(kit, request))
+                .filter(kit -> !applyRamFilter || filterRamByBudget(kit, request.getBudget()))
+                .sorted(Comparator.comparingDouble((PlatformKit kit) -> kit.totalCost).reversed())
+                .collect(Collectors.toList());
+    }
+
+    private RecommendationResponseDTO tryBuildFromKits(
+            List<PlatformKit> validKits,
+            RecommendationRequestDTO request,
+            double maxBudget,
+            BudgetAllocation allocation) {
+
+        if (validKits.isEmpty()) return null;
+
+        boolean isBudgetBuild = request.getBudget().equalsIgnoreCase("econômico");
         if (isBudgetBuild) {
             validKits.sort(Comparator.comparingDouble(kit -> kit.totalCost));
-            System.out.println("🔵 Kits ordenados por preço (mais barato primeiro)");
-        } else {
-            System.out.println("🔵 Kits ordenados por preço (mais caro primeiro)");
         }
 
         // Tenta montar a build completa
-        System.out.println("🔵 Tentando montar build completa...");
         int attempts = 0;
         for (PlatformKit currentKit : validKits) {
             attempts++;
-            if (attempts % 10 == 0) {
-                System.out.println("🔵 Tentativa #" + attempts);
-            }
-
             double remainingBudget = maxBudget - currentKit.totalCost;
 
             // ✅ 1. Refrigeração (se necessária)
@@ -132,30 +202,17 @@ public class RecommendationService {
 
             // ✅ 2. GPU (prioridade em builds gaming)
             GpuModel selectedGpu = null;
-            boolean needsGpu = requiresGpu(request);
-            if (attempts == 1) {
-                System.out.println("🔵 Verificando GPU...");
-                System.out.println("🔵   - Precisa GPU? " + (needsGpu ? "SIM" : "NÃO"));
-            }
-            if (needsGpu) {
+            if (requiresGpu(request)) {
                 selectedGpu = selectGpu(allocation.gpuBudget, request);
                 if (selectedGpu != null) {
-                    if (attempts == 1) {
-                        System.out.println("🔵   - GPU selecionada: " + selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")");
-                    }
                     remainingBudget -= selectedGpu.getPreco();
-                } else {
-                    if (attempts == 1) {
-                        System.out.println("❌   - NENHUMA GPU encontrada!");
-                    }
                 }
             }
 
             // ✅ 3. Armazenamento (escalável)
             ArmazenamentoModel selectedArmazenamento = selectArmazenamento(allocation.storageBudget, maxBudget);
-            if (selectedArmazenamento != null) {
-                remainingBudget -= selectedArmazenamento.getPreco();
-            }
+            if (selectedArmazenamento == null) continue;
+            remainingBudget -= selectedArmazenamento.getPreco();
 
             // ✅ 4. Gabinete (compatível e escalável)
             GabineteModel selectedGabinete = selectGabinete(currentKit.placaMae, allocation.caseBudget);
@@ -169,7 +226,7 @@ public class RecommendationService {
             remainingBudget -= selectedFonte.getPreco();
 
             // Verifica se todos os componentes obrigatórios foram encontrados
-            if (selectedArmazenamento != null && selectedFonte != null && selectedGabinete != null && remainingBudget >= -200) {
+            if (remainingBudget >= -500) { // ✅ Tolera até R$ 500 de estouro
                 double totalPrice = maxBudget - remainingBudget;
                 System.out.println("✅ ========================================");
                 System.out.println("✅ BUILD ENCONTRADA!");
@@ -200,7 +257,7 @@ public class RecommendationService {
             }
         }
 
-        throw new RuntimeException("Não foi possível montar uma configuração completa. Tente um orçamento maior ou cadastre mais peças.");
+        return null;
     }
 
     // ========================================
