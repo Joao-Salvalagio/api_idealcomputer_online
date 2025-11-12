@@ -25,11 +25,6 @@ public class RecommendationService {
     private final GabineteRepository gabineteRepository;
     private final RefrigeracaoRepository refrigeracaoRepository;
 
-    // ✅ CONFIGURAÇÕES DE PERFORMANCE
-    private static final int MAX_ATTEMPTS = 150;
-    private static final long TIMEOUT_MS = 45000;
-    private static final double MIN_BUDGET_USAGE = 0.75;
-
     private static class PlatformKit {
         CpuModel cpu;
         PlacaMaeModel placaMae;
@@ -45,304 +40,172 @@ public class RecommendationService {
     }
 
     public RecommendationResponseDTO generateBuild(RecommendationRequestDTO request) {
-        System.out.println("🔵 [Service] ========================================");
-        System.out.println("🔵 [Service] INICIANDO GERAÇÃO DE RECOMENDAÇÃO");
-        System.out.println("🔵 [Service] ========================================");
-        long startTime = System.currentTimeMillis();
-        RecommendationResponseDTO bestBuild = null;
-        double bestPrice = 0;
+        System.out.println("🔵 ========================================");
+        System.out.println("🔵 INICIANDO GERAÇÃO DE RECOMENDAÇÃO");
+        System.out.println("🔵 ========================================");
+        System.out.println("🔵 Usage: " + request.getUsage());
+        System.out.println("🔵 Detail: " + request.getDetail());
+        System.out.println("🔵 Budget: " + request.getBudget());
+        System.out.println("🔵 ========================================");
 
-        try {
-            double maxBudget = getBudgetLimit(request.getBudget());
-            System.out.println("🔵 [Service] Orçamento máximo: R$ " + maxBudget);
+        double maxBudget = getBudgetLimit(request.getBudget());
+        System.out.println("🔵 Orçamento máximo: R$ " + maxBudget);
 
-            // ✅ OTIMIZAÇÃO: Busca componentes do banco ANTES do loop
-            System.out.println("🔵 [Service] Buscando componentes do banco de dados...");
-            List<CpuModel> allCpus = cpuRepository.findAll();
-            List<PlacaMaeModel> allPlacasMae = placaMaeRepository.findAll();
-            List<MemoriaRamModel> allRams = memoriaRamRepository.findAll();
+        // Gera todos os kits possíveis
+        System.out.println("🔵 Gerando kits de plataforma...");
+        List<PlatformKit> allPossibleKits = new ArrayList<>();
+        List<CpuModel> allCpus = cpuRepository.findAll();
+        List<PlacaMaeModel> allPlacasMae = placaMaeRepository.findAll();
+        List<MemoriaRamModel> allRams = memoriaRamRepository.findAll();
 
-            System.out.println("🔵 [Service] Componentes encontrados:");
-            System.out.println("🔵 [Service]   - CPUs: " + allCpus.size());
-            System.out.println("🔵 [Service]   - Placas-mãe: " + allPlacasMae.size());
-            System.out.println("🔵 [Service]   - Memórias RAM: " + allRams.size());
+        System.out.println("🔵 Componentes no banco:");
+        System.out.println("🔵   - CPUs: " + allCpus.size());
+        System.out.println("🔵   - Placas-mãe: " + allPlacasMae.size());
+        System.out.println("🔵   - RAMs: " + allRams.size());
 
-            // ✅ Calcula orçamentos de cada componente
-            System.out.println("🔵 [Service] Calculando alocação de orçamento...");
-            BudgetAllocation allocation = calculateBudgetAllocation(maxBudget, request);
-            System.out.println("🔵 [Service] Alocação:");
-            System.out.println("🔵 [Service]   - Plataforma (CPU+MB+RAM): R$ " + String.format("%.2f", allocation.platformBudget));
-            System.out.println("🔵 [Service]   - GPU: R$ " + String.format("%.2f", allocation.gpuBudget));
-            System.out.println("🔵 [Service]   - Armazenamento: R$ " + String.format("%.2f", allocation.storageBudget));
-            System.out.println("🔵 [Service]   - Gabinete: R$ " + String.format("%.2f", allocation.caseBudget));
-            System.out.println("🔵 [Service]   - Refrigeração: R$ " + String.format("%.2f", allocation.coolerBudget));
-
-            // ✅ OTIMIZAÇÃO: Filtra CPUs ANTES do loop
-            System.out.println("🔵 [Service] Filtrando CPUs por uso e orçamento...");
-            List<CpuModel> validCpus = allCpus.stream()
-                    .filter(cpu -> cpu.getPreco() <= allocation.platformBudget * 0.6)
-                    .filter(cpu -> filterCpuByUsage(cpu, request))
-                    .sorted(Comparator.comparing(CpuModel::getPreco).reversed())
-                    .collect(Collectors.toList());
-
-            System.out.println("🔵 [Service] CPUs válidas após filtragem: " + validCpus.size());
-
-            if (validCpus.isEmpty()) {
-                throw new RuntimeException("Nenhuma CPU encontrada para o orçamento e uso especificados.");
-            }
-
-            // Gera kits possíveis (OTIMIZADO)
-            System.out.println("🔵 [Service] Gerando kits de plataforma...");
-            List<PlatformKit> allPossibleKits = new ArrayList<>();
-            int kitCount = 0;
-
-            for (CpuModel cpu : validCpus) {
-                for (PlacaMaeModel pm : allPlacasMae) {
-                    if (pm.getSoqueteCpu().equalsIgnoreCase(cpu.getSoquete())) {
-                        for (MemoriaRamModel ram : allRams) {
-                            if (ram.getTipo().equalsIgnoreCase(pm.getTipoRamSuportado())) {
-                                PlatformKit kit = new PlatformKit(cpu, pm, ram);
-                                if (kit.totalCost <= allocation.platformBudget && filterRamByBudget(kit, request.getBudget())) {
-                                    allPossibleKits.add(kit);
-                                    kitCount++;
-                                }
-                            }
+        for (CpuModel cpu : allCpus) {
+            for (PlacaMaeModel pm : allPlacasMae) {
+                if (pm.getSoqueteCpu().equalsIgnoreCase(cpu.getSoquete())) {
+                    for (MemoriaRamModel ram : allRams) {
+                        if (ram.getTipo().equalsIgnoreCase(pm.getTipoRamSuportado())) {
+                            allPossibleKits.add(new PlatformKit(cpu, pm, ram));
                         }
                     }
                 }
+            }
+        }
 
-                // ✅ Log de progresso
-                if (kitCount % 100 == 0 && kitCount > 0) {
-                    System.out.println("🔵 [Service] Kits gerados até agora: " + kitCount);
+        System.out.println("🔵 Total de kits gerados: " + allPossibleKits.size());
+
+        // ✅ NOVO: Calcula orçamentos de cada componente
+        BudgetAllocation allocation = calculateBudgetAllocation(maxBudget, request);
+        System.out.println("🔵 Alocação de orçamento:");
+        System.out.println("🔵   - Plataforma: R$ " + String.format("%.2f", allocation.platformBudget));
+        System.out.println("🔵   - GPU: R$ " + String.format("%.2f", allocation.gpuBudget));
+        System.out.println("🔵   - Armazenamento: R$ " + String.format("%.2f", allocation.storageBudget));
+        System.out.println("🔵   - Gabinete: R$ " + String.format("%.2f", allocation.caseBudget));
+        System.out.println("🔵   - Refrigeração: R$ " + String.format("%.2f", allocation.coolerBudget));
+
+        // Filtra kits válidos
+        System.out.println("🔵 Filtrando kits válidos...");
+        List<PlatformKit> validKits = allPossibleKits.stream()
+                .filter(kit -> kit.totalCost <= allocation.platformBudget)
+                .filter(kit -> filterKitByUsage(kit, request))
+                .filter(kit -> filterRamByBudget(kit, request.getBudget()))
+                .sorted(Comparator.comparingDouble((PlatformKit kit) -> kit.totalCost).reversed())
+                .collect(Collectors.toList());
+
+        System.out.println("🔵 Kits válidos após filtragem: " + validKits.size());
+
+        if (validKits.isEmpty()) {
+            throw new RuntimeException("Não foi possível encontrar um kit compatível. Tente um orçamento maior.");
+        }
+
+        boolean isBudgetBuild = request.getBudget().equalsIgnoreCase("econômico");
+
+        if (isBudgetBuild) {
+            validKits.sort(Comparator.comparingDouble(kit -> kit.totalCost));
+            System.out.println("🔵 Kits ordenados por preço (mais barato primeiro)");
+        } else {
+            System.out.println("🔵 Kits ordenados por preço (mais caro primeiro)");
+        }
+
+        // Tenta montar a build completa
+        System.out.println("🔵 Tentando montar build completa...");
+        int attempts = 0;
+        for (PlatformKit currentKit : validKits) {
+            attempts++;
+            if (attempts % 10 == 0) {
+                System.out.println("🔵 Tentativa #" + attempts);
+            }
+
+            double remainingBudget = maxBudget - currentKit.totalCost;
+
+            // ✅ 1. Refrigeração (se necessária)
+            RefrigeracaoModel selectedRefrigeracao = null;
+            if (requiresSeparateCooler(currentKit.cpu)) {
+                selectedRefrigeracao = selectRefrigeracao(currentKit.cpu, allocation.coolerBudget, maxBudget);
+                if (selectedRefrigeracao != null) {
+                    remainingBudget -= selectedRefrigeracao.getPreco();
                 }
             }
 
-            System.out.println("🔵 [Service] Total de kits válidos gerados: " + allPossibleKits.size());
-
-            if (allPossibleKits.isEmpty()) {
-                throw new RuntimeException("Não foi possível encontrar um kit compatível. Tente um orçamento maior.");
+            // ✅ 2. GPU (prioridade em builds gaming)
+            GpuModel selectedGpu = null;
+            boolean needsGpu = requiresGpu(request);
+            if (attempts == 1) {
+                System.out.println("🔵 Verificando GPU...");
+                System.out.println("🔵   - Precisa GPU? " + (needsGpu ? "SIM" : "NÃO"));
             }
-
-            // Ordena kits
-            boolean isBudgetBuild = request.getBudget().equalsIgnoreCase("econômico");
-            if (isBudgetBuild) {
-                allPossibleKits.sort(Comparator.comparingDouble(kit -> kit.totalCost));
-                System.out.println("🔵 [Service] Kits ordenados por preço (mais barato primeiro)");
-            } else {
-                allPossibleKits.sort(Comparator.comparingDouble((PlatformKit kit) -> kit.totalCost).reversed());
-                System.out.println("🔵 [Service] Kits ordenados por preço (mais caro primeiro)");
-            }
-
-            // Tenta montar a build completa
-            System.out.println("🔵 [Service] Tentando montar build completa...");
-            int attempts = 0;
-
-            for (PlatformKit currentKit : allPossibleKits) {
-                attempts++;
-
-                // ✅ VERIFICAR TIMEOUT
-                long elapsedTime = System.currentTimeMillis() - startTime;
-                if (elapsedTime > TIMEOUT_MS) {
-                    System.out.println("🔵 [Service] ⚠️ Timeout atingido (" + (elapsedTime / 1000) + "s)! Retornando melhor build encontrada.");
-                    break;
-                }
-
-                // ✅ LIMITE DE TENTATIVAS
-                if (attempts > MAX_ATTEMPTS) {
-                    System.out.println("🔵 [Service] ⚠️ Limite de " + MAX_ATTEMPTS + " tentativas atingido! Retornando melhor build encontrada.");
-                    break;
-                }
-
-                double remainingBudget = maxBudget - currentKit.totalCost;
-
-                if (attempts % 10 == 0) {
-                    System.out.println("🔵 [Service] Tentativa #" + attempts + " | Orçamento restante: R$ " + String.format("%.2f", remainingBudget));
-                }
-
-                // ✅ 1. Refrigeração (se necessária)
-                RefrigeracaoModel selectedRefrigeracao = null;
-                if (requiresSeparateCooler(currentKit.cpu)) {
-                    selectedRefrigeracao = selectRefrigeracao(currentKit.cpu, allocation.coolerBudget, maxBudget);
-                    if (selectedRefrigeracao != null) {
-                        remainingBudget -= selectedRefrigeracao.getPreco();
+            if (needsGpu) {
+                selectedGpu = selectGpu(allocation.gpuBudget, request);
+                if (selectedGpu != null) {
+                    if (attempts == 1) {
+                        System.out.println("🔵   - GPU selecionada: " + selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")");
                     }
-                }
-
-                // ✅ 2. GPU (prioridade em builds gaming) - COM LOGS DETALHADOS
-                GpuModel selectedGpu = null;
-                boolean needsGpu = requiresGpu(request);
-                System.out.println("🔵 [Service] ========================================");
-                System.out.println("🔵 [Service] Verificando necessidade de GPU...");
-                System.out.println("🔵 [Service]   - Usage recebido: '" + request.getUsage() + "'");
-                System.out.println("🔵 [Service]   - Detail recebido: '" + request.getDetail() + "'");
-                System.out.println("🔵 [Service]   - Budget recebido: '" + request.getBudget() + "'");
-                System.out.println("🔵 [Service]   - Precisa de GPU? " + (needsGpu ? "✅ SIM" : "❌ NÃO"));
-                System.out.println("🔵 [Service] ========================================");
-
-                if (needsGpu) {
-                    System.out.println("🔵 [Service] Tentando selecionar GPU (Budget: R$ " + String.format("%.2f", allocation.gpuBudget) + ")");
-                    selectedGpu = selectGpu(allocation.gpuBudget, request);
-                    if (selectedGpu != null) {
-                        System.out.println("🔵 [Service]   ✅ GPU selecionada: " + selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")");
-                        remainingBudget -= selectedGpu.getPreco();
-                    } else {
-                        System.out.println("❌ [Service]   ❌ NENHUMA GPU encontrada! Pulando kit.");
-                        continue; // ✅ PULA ESTE KIT SE NÃO TEM GPU
-                    }
+                    remainingBudget -= selectedGpu.getPreco();
                 } else {
-                    System.out.println("🔵 [Service] ⚠️ GPU não é necessária para esta configuração (Jogos Leves ou outros usos)");
-                }
-
-                // ✅ 3. Armazenamento (escalável)
-                ArmazenamentoModel selectedArmazenamento = selectArmazenamento(allocation.storageBudget, maxBudget);
-                if (selectedArmazenamento != null) {
-                    remainingBudget -= selectedArmazenamento.getPreco();
-                }
-
-                // ✅ 4. Gabinete (compatível e escalável)
-                GabineteModel selectedGabinete = selectGabinete(currentKit.placaMae, allocation.caseBudget);
-                if (selectedGabinete == null) continue;
-                remainingBudget -= selectedGabinete.getPreco();
-
-                // ✅ 5. Fonte (compatível e adequada)
-                double potenciaNecessaria = calculateRequiredWattage(currentKit.cpu, selectedGpu, maxBudget);
-                FonteModel selectedFonte = selectFonte(currentKit.placaMae, selectedGabinete, remainingBudget, potenciaNecessaria);
-                if (selectedFonte == null) continue;
-                remainingBudget -= selectedFonte.getPreco();
-
-                // Verifica se todos os componentes obrigatórios foram encontrados
-                if (selectedArmazenamento != null && selectedFonte != null && selectedGabinete != null && remainingBudget >= -200) {
-                    double totalPrice = maxBudget - remainingBudget;
-                    double usagePercentage = totalPrice / maxBudget;
-
-                    // ✅ EARLY EXIT: Se usar > 75% do orçamento, aceita!
-                    if (usagePercentage >= MIN_BUDGET_USAGE) {
-                        long endTime = System.currentTimeMillis();
-                        long duration = (endTime - startTime) / 1000;
-
-                        System.out.println("✅ [Service] ========================================");
-                        System.out.println("✅ [Service] BUILD ÓTIMA ENCONTRADA!");
-                        System.out.println("✅ [Service] ========================================");
-                        System.out.println("✅ [Service] Tempo de processamento: " + duration + " segundos");
-                        System.out.println("✅ [Service] Tentativas necessárias: " + attempts);
-                        System.out.println("✅ [Service] Uso do orçamento: " + String.format("%.2f%%", usagePercentage * 100));
-                        System.out.println("✅ [Service] Componentes:");
-                        System.out.println("✅ [Service]   - CPU: " + currentKit.cpu.getNome() + " (R$ " + currentKit.cpu.getPreco() + ")");
-                        System.out.println("✅ [Service]   - Placa-mãe: " + currentKit.placaMae.getNome() + " (R$ " + currentKit.placaMae.getPreco() + ")");
-                        System.out.println("✅ [Service]   - RAM: " + currentKit.memoriaRam.getNome() + " (R$ " + currentKit.memoriaRam.getPreco() + ")");
-                        System.out.println("✅ [Service]   - GPU: " + (selectedGpu != null ? selectedGpu.getNome() + " (R$ " + selectedGpu.getPreco() + ")" : "Nenhuma"));
-                        System.out.println("✅ [Service]   - Armazenamento: " + selectedArmazenamento.getNome() + " (R$ " + selectedArmazenamento.getPreco() + ")");
-                        System.out.println("✅ [Service]   - Fonte: " + selectedFonte.getNome() + " (R$ " + selectedFonte.getPreco() + ")");
-                        System.out.println("✅ [Service]   - Gabinete: " + selectedGabinete.getNome() + " (R$ " + selectedGabinete.getPreco() + ")");
-                        System.out.println("✅ [Service]   - Refrigeração: " + (selectedRefrigeracao != null ? selectedRefrigeracao.getNome() + " (R$ " + selectedRefrigeracao.getPreco() + ")" : "Nenhuma"));
-
-                        RecommendationResponseDTO response = new RecommendationResponseDTO();
-                        response.setCpu(currentKit.cpu);
-                        response.setPlacaMae(currentKit.placaMae);
-                        response.setMemoriaRam(currentKit.memoriaRam);
-                        response.setGpu(selectedGpu);
-                        response.setArmazenamento(selectedArmazenamento);
-                        response.setFonte(selectedFonte);
-                        response.setGabinete(selectedGabinete);
-                        response.setRefrigeracao(selectedRefrigeracao);
-                        return response;
-                    }
-
-                    // ✅ Guardar melhor build
-                    if (totalPrice > bestPrice) {
-                        bestPrice = totalPrice;
-                        bestBuild = new RecommendationResponseDTO();
-                        bestBuild.setCpu(currentKit.cpu);
-                        bestBuild.setPlacaMae(currentKit.placaMae);
-                        bestBuild.setMemoriaRam(currentKit.memoriaRam);
-                        bestBuild.setGpu(selectedGpu);
-                        bestBuild.setArmazenamento(selectedArmazenamento);
-                        bestBuild.setFonte(selectedFonte);
-                        bestBuild.setGabinete(selectedGabinete);
-                        bestBuild.setRefrigeracao(selectedRefrigeracao);
+                    if (attempts == 1) {
+                        System.out.println("❌   - NENHUMA GPU encontrada!");
                     }
                 }
             }
 
-            // ✅ Se não encontrou build ótima, retorna a melhor
-            if (bestBuild != null) {
-                long endTime = System.currentTimeMillis();
-                long duration = (endTime - startTime) / 1000;
-                double usagePercentage = bestPrice / maxBudget;
-
-                System.out.println("✅ [Service] ========================================");
-                System.out.println("✅ [Service] MELHOR BUILD ENCONTRADA!");
-                System.out.println("✅ [Service] ========================================");
-                System.out.println("✅ [Service] Tempo de processamento: " + duration + " segundos");
-                System.out.println("✅ [Service] Tentativas totais: " + attempts);
-                System.out.println("✅ [Service] Uso do orçamento: " + String.format("%.2f%%", usagePercentage * 100));
-                System.out.println("✅ [Service] Preço total: R$ " + String.format("%.2f", bestPrice));
-
-                return bestBuild;
+            // ✅ 3. Armazenamento (escalável)
+            ArmazenamentoModel selectedArmazenamento = selectArmazenamento(allocation.storageBudget, maxBudget);
+            if (selectedArmazenamento != null) {
+                remainingBudget -= selectedArmazenamento.getPreco();
             }
 
-            throw new RuntimeException("Não foi possível montar uma configuração completa após " + attempts + " tentativas. Tente um orçamento maior ou cadastre mais peças.");
+            // ✅ 4. Gabinete (compatível e escalável)
+            GabineteModel selectedGabinete = selectGabinete(currentKit.placaMae, allocation.caseBudget);
+            if (selectedGabinete == null) continue;
+            remainingBudget -= selectedGabinete.getPreco();
 
-        } catch (Exception e) {
-            long endTime = System.currentTimeMillis();
-            long duration = (endTime - startTime) / 1000;
+            // ✅ 5. Fonte (compatível e adequada)
+            double potenciaNecessaria = calculateRequiredWattage(currentKit.cpu, selectedGpu, maxBudget);
+            FonteModel selectedFonte = selectFonte(currentKit.placaMae, selectedGabinete, remainingBudget, potenciaNecessaria);
+            if (selectedFonte == null) continue;
+            remainingBudget -= selectedFonte.getPreco();
 
-            System.err.println("❌ [Service] ========================================");
-            System.err.println("❌ [Service] ERRO AO GERAR RECOMENDAÇÃO!");
-            System.err.println("❌ [Service] ========================================");
-            System.err.println("❌ [Service] Tempo até o erro: " + duration + " segundos");
-            System.err.println("❌ [Service] Mensagem: " + e.getMessage());
-            e.printStackTrace();
+            // Verifica se todos os componentes obrigatórios foram encontrados
+            if (selectedArmazenamento != null && selectedFonte != null && selectedGabinete != null && remainingBudget >= -200) {
+                double totalPrice = maxBudget - remainingBudget;
+                System.out.println("✅ ========================================");
+                System.out.println("✅ BUILD ENCONTRADA!");
+                System.out.println("✅ ========================================");
+                System.out.println("✅ Tentativas necessárias: " + attempts);
+                System.out.println("✅ Preço total: R$ " + String.format("%.2f", totalPrice));
+                System.out.println("✅ Orçamento usado: " + String.format("%.2f%%", (totalPrice / maxBudget) * 100));
+                System.out.println("✅ Componentes:");
+                System.out.println("✅   - CPU: " + currentKit.cpu.getNome());
+                System.out.println("✅   - Placa-mãe: " + currentKit.placaMae.getNome());
+                System.out.println("✅   - RAM: " + currentKit.memoriaRam.getNome());
+                System.out.println("✅   - GPU: " + (selectedGpu != null ? selectedGpu.getNome() : "Nenhuma"));
+                System.out.println("✅   - Armazenamento: " + selectedArmazenamento.getNome());
+                System.out.println("✅   - Fonte: " + selectedFonte.getNome());
+                System.out.println("✅   - Gabinete: " + selectedGabinete.getNome());
+                System.out.println("✅   - Refrigeração: " + (selectedRefrigeracao != null ? selectedRefrigeracao.getNome() : "Nenhuma"));
 
-            throw e;
+                RecommendationResponseDTO response = new RecommendationResponseDTO();
+                response.setCpu(currentKit.cpu);
+                response.setPlacaMae(currentKit.placaMae);
+                response.setMemoriaRam(currentKit.memoriaRam);
+                response.setGpu(selectedGpu);
+                response.setArmazenamento(selectedArmazenamento);
+                response.setFonte(selectedFonte);
+                response.setGabinete(selectedGabinete);
+                response.setRefrigeracao(selectedRefrigeracao);
+                return response;
+            }
         }
+
+        throw new RuntimeException("Não foi possível montar uma configuração completa. Tente um orçamento maior ou cadastre mais peças.");
     }
 
-    // ✅ FILTRO INTELIGENTE DE CPU (CORRIGIDO)
-    private boolean filterCpuByUsage(CpuModel cpu, RecommendationRequestDTO request) {
-        String usage = request.getUsage().toLowerCase();
-        String detail = request.getDetail().toLowerCase();
-        String cpuName = cpu.getNome().toUpperCase();
-
-        System.out.println("🔵 [Service] Analisando CPU: " + cpu.getNome() + " (R$ " + cpu.getPreco() + ")");
-
-        // ✅ JOGOS: Prioriza CPUs sem gráfico integrado
-        if (usage.equals("jogos")) {
-            if (detail.contains("leves")) {
-                boolean hasIntegratedGraphics = cpuName.endsWith("G");
-                System.out.println("🔵 [Service]   -> Jogos Leves: " + (hasIntegratedGraphics ? "✅ ACEITA (com iGPU)" : "⚠️ Aceita mas não é ideal"));
-                return true;
-            }
-            boolean isGamingCpu = !cpuName.endsWith("G") || cpuName.contains("F");
-            System.out.println("🔵 [Service]   -> Jogos Pesados: " + (isGamingCpu ? "✅ ACEITA (sem iGPU)" : "⚠️ Aceita mas não é ideal"));
-            return true;
-        }
-
-        // ✅ ESTUDOS: Depende do curso
-        if (usage.equals("estudos")) {
-            if (detail.contains("engenharia") || detail.contains("arquitetura")) {
-                boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
-                System.out.println("🔵 [Service]   -> Engenharia: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
-                return true;
-            }
-            System.out.println("🔵 [Service]   -> Estudos Gerais: ✅ ACEITA");
-            return true;
-        }
-
-        // ✅ TRABALHO: Depende do tipo
-        if (usage.equals("trabalho")) {
-            if (detail.contains("edição") || detail.contains("design") || detail.contains("renderização")) {
-                boolean isPowerfulCpu = !cpuName.endsWith("G") || cpuName.contains("I7") || cpuName.contains("I9") || cpuName.contains("RYZEN 7") || cpuName.contains("RYZEN 9");
-                System.out.println("🔵 [Service]   -> Trabalho Pesado: " + (isPowerfulCpu ? "✅ ACEITA (CPU potente)" : "✅ ACEITA"));
-                return true;
-            }
-            System.out.println("🔵 [Service]   -> Trabalho Básico: ✅ ACEITA");
-            return true;
-        }
-
-        System.out.println("🔵 [Service]   -> Uso Genérico: ✅ ACEITA");
-        return true;
-    }
+    // ========================================
+    // ✅ ALOCAÇÃO DE ORÇAMENTO INTELIGENTE
+    // ========================================
 
     private static class BudgetAllocation {
         double platformBudget;
@@ -388,31 +251,24 @@ public class RecommendationService {
         return allocation;
     }
 
-    // ✅ MÉTODO selectGpu COM LOGS DE DEBUG
+    // ========================================
+    // ✅ SELEÇÃO INTELIGENTE DE GPU (COM LOGS)
+    // ========================================
+
     private GpuModel selectGpu(double budget, RecommendationRequestDTO request) {
         String detail = request.getDetail().toLowerCase();
 
-        System.out.println("🔵 [Service] Buscando GPUs (Budget: R$ " + String.format("%.2f", budget) + ")");
         List<GpuModel> allGpus = gpuRepository.findAll();
-        System.out.println("🔵 [Service] Total de GPUs no banco: " + allGpus.size());
+        System.out.println("🔵 [GPU] Total no banco: " + allGpus.size());
 
         List<GpuModel> gpus = allGpus.stream()
-                .filter(g -> {
-                    boolean priceOk = g.getPreco() <= budget;
-                    if (!priceOk) {
-                        System.out.println("🔵 [Service]   ❌ GPU rejeitada (preço): " + g.getNome() + " (R$ " + g.getPreco() + ")");
-                    }
-                    return priceOk;
-                })
+                .filter(g -> g.getPreco() <= budget)
                 .sorted(Comparator.comparing(GpuModel::getPreco).reversed())
                 .collect(Collectors.toList());
 
-        System.out.println("🔵 [Service] GPUs dentro do orçamento: " + gpus.size());
+        System.out.println("🔵 [GPU] Dentro do orçamento (R$ " + String.format("%.2f", budget) + "): " + gpus.size());
 
-        if (gpus.isEmpty()) {
-            System.out.println("❌ [Service] NENHUMA GPU encontrada dentro do orçamento!");
-            return null;
-        }
+        if (gpus.isEmpty()) return null;
 
         if (budget > 5000 && (detail.contains("pesados") || detail.contains("todo tipo") || detail.contains("edição"))) {
             return gpus.stream()
@@ -584,6 +440,35 @@ public class RecommendationService {
         }
 
         return false;
+    }
+
+    private boolean filterKitByUsage(PlatformKit kit, RecommendationRequestDTO request) {
+        String usage = request.getUsage().toLowerCase();
+        String detail = request.getDetail().toLowerCase();
+        String cpuName = kit.cpu.getNome().toLowerCase();
+
+        if (usage.equals("jogos")) {
+            if (detail.contains("leves")) {
+                return cpuName.contains("g");
+            }
+            return !cpuName.contains("g");
+        }
+
+        if (usage.equals("estudos")) {
+            if (detail.contains("engenharia")) {
+                return !cpuName.contains("g");
+            }
+            return cpuName.contains("g");
+        }
+
+        if (usage.equals("trabalho")) {
+            if (detail.contains("office") || detail.contains("básico")) {
+                return cpuName.contains("g");
+            }
+            return !cpuName.contains("g");
+        }
+
+        return true;
     }
 
     private boolean requiresSeparateCooler(CpuModel cpu) {
